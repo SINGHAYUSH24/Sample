@@ -3,13 +3,15 @@ pipeline {
 
     environment {
         EC2_HOST = "ec2-user@13.206.186.119"
+        SSH_KEY = "/var/lib/jenkins/.ssh/aws_key.pem"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/SINGHAYUSH24/Sample.git'
+                git branch: 'main',
+                url: 'https://github.com/SINGHAYUSH24/Sample.git'
             }
         }
 
@@ -28,7 +30,10 @@ pipeline {
         stage('Transfer to EC2') {
             steps {
                 sh '''
-                scp -o StrictHostKeyChecking=no myapp.tar ec2-user@13.206.186.119:/home/ec2-user/
+                scp -i $SSH_KEY \
+                -o StrictHostKeyChecking=no \
+                myapp.tar \
+                $EC2_HOST:/home/ec2-user/
                 '''
             }
         }
@@ -36,11 +41,20 @@ pipeline {
         stage('Deploy on EC2') {
             steps {
                 sh '''
-                ssh ec2-user@13.206.186.119 << 'EOF'
+                ssh -i $SSH_KEY \
+                -o StrictHostKeyChecking=no \
+                $EC2_HOST << 'EOF'
+
                 docker load < myapp.tar
+
                 docker stop myapp || true
                 docker rm myapp || true
-                docker run -d -p 80:3000 --name myapp myapp:latest
+
+                docker run -d \
+                -p 80:3000 \
+                --name myapp \
+                myapp:latest
+
                 EOF
                 '''
             }
