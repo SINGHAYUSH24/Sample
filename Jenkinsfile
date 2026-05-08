@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = "ec2-user@3.111.186.32"
+        EC2_HOST = "ec2-user@13.206.186.119"
     }
 
     stages {
@@ -28,7 +28,7 @@ pipeline {
         stage('Transfer to EC2') {
             steps {
                 sh '''
-                scp -o StrictHostKeyChecking=no myapp.tar ec2-user@3.111.186.32:/home/ec2-user/
+                scp -o StrictHostKeyChecking=no myapp.tar ec2-user@13.206.186.119:/home/ec2-user/
                 '''
             }
         }
@@ -36,7 +36,7 @@ pipeline {
         stage('Deploy on EC2') {
             steps {
                 sh '''
-                ssh ec2-user@3.111.186.32 << 'EOF'
+                ssh ec2-user@13.206.186.119 << 'EOF'
                 docker load < myapp.tar
                 docker stop myapp || true
                 docker rm myapp || true
