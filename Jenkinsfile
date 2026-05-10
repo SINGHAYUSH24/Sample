@@ -12,19 +12,20 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                url: 'https://github.com/SINGHAYUSH24/Sample.git'
+                    url: 'https://github.com/SINGHAYUSH24/Sample.git'
             }
         }
 
         stage('Transfer Source Code') {
             steps {
                 sh '''
-                ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST \
-                "mkdir -p $APP_DIR"
+                ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST "mkdir -p $APP_DIR"
 
                 rsync -avz --delete \
-                -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
-                ./ $EC2_HOST:$APP_DIR/
+                  --exclude='.git' \
+                  --exclude='myapp.tar' \
+                  -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
+                  ./ $EC2_HOST:$APP_DIR/
                 '''
             }
         }
@@ -32,22 +33,22 @@ pipeline {
         stage('Build and Deploy on EC2') {
             steps {
                 sh '''
-                ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST << EOF
-                    cd $APP_DIR
+ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST << EOF
+cd $APP_DIR
 
-                    docker build -t myapp:latest .
+docker build -t myapp:latest .
 
-                    docker stop myapp || true
-                    docker rm myapp || true
+docker stop myapp || true
+docker rm myapp || true
 
-                    docker run -d \
-                        --name myapp \
-                        -p 80:3000 \
-                        --restart unless-stopped \
-                        myapp:latest
+docker run -d \
+  --name myapp \
+  -p 80:3000 \
+  --restart unless-stopped \
+  myapp:latest
 
-                    docker image prune -f
-                EOF
+docker image prune -f
+EOF
                 '''
             }
         }
