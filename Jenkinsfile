@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = "ec2-user@65.2.140.209"
+        EC2_HOST = "ec2-user@13.233.127.174"
         SSH_KEY = "/var/lib/jenkins/.ssh/aws_key.pem"
         APP_DIR = "/home/ec2-user/myapp"
     }
@@ -36,7 +36,7 @@ pipeline {
 ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST << EOF
 cd $APP_DIR
 
-docker build -t myapp:latest .
+docker build --no-cache -t myapp:latest .
 
 docker stop myapp || true
 docker rm myapp || true
