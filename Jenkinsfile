@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = "ec2-user@13.206.186.119"
+        EC2_HOST = "ec2-user@65.2.140.209"
         SSH_KEY = "/var/lib/jenkins/.ssh/aws_key.pem"
+        APP_DIR = "/home/ec2-user/myapp"
     }
 
     stages {
@@ -15,46 +16,37 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t myapp:latest .'
-            }
-        }
-
-        stage('Save Image') {
-            steps {
-                sh 'docker save myapp:latest > myapp.tar'
-            }
-        }
-
-        stage('Transfer to EC2') {
+        stage('Transfer Source Code') {
             steps {
                 sh '''
-                scp -i $SSH_KEY \
-                -o StrictHostKeyChecking=no \
-                myapp.tar \
-                $EC2_HOST:/home/ec2-user/
+                ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST \
+                "mkdir -p $APP_DIR"
+
+                rsync -avz --delete \
+                -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
+                ./ $EC2_HOST:$APP_DIR/
                 '''
             }
         }
 
-        stage('Deploy on EC2') {
+        stage('Build and Deploy on EC2') {
             steps {
                 sh '''
-                ssh -i $SSH_KEY \
-                -o StrictHostKeyChecking=no \
-                $EC2_HOST << 'EOF'
+                ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST << EOF
+                    cd $APP_DIR
 
-                docker load < myapp.tar
+                    docker build -t myapp:latest .
 
-                docker stop myapp || true
-                docker rm myapp || true
+                    docker stop myapp || true
+                    docker rm myapp || true
 
-                docker run -d \
-                -p 80:3000 \
-                --name myapp \
-                myapp:latest
+                    docker run -d \
+                        --name myapp \
+                        -p 80:3000 \
+                        --restart unless-stopped \
+                        myapp:latest
 
+                    docker image prune -f
                 EOF
                 '''
             }
