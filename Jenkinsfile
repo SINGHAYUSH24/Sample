@@ -43,7 +43,7 @@ docker rm myapp || true
 
 docker run -d \
   --name myapp \
-  -p 80:3000 \
+  -p 80:80 \
   --restart unless-stopped \
   myapp:latest
 
