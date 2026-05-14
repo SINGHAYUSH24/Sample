@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = "ec2-user@13.206.145.115"
+        EC2_HOST = "ec2-user@13.234.122.221"
         SSH_KEY = "/var/lib/jenkins/.ssh/aws_key.pem"
         APP_DIR = "/home/ec2-user/myapp"
     }
