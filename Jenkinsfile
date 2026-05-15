@@ -2,9 +2,12 @@ pipeline {
     agent any
 
     environment {
-        EC2_HOST = "ec2-user@13.234.122.221"
-        SSH_KEY = "/var/lib/jenkins/.ssh/aws_key.pem"
-        APP_DIR = "/home/ec2-user/myapp"
+        IMAGE_NAME = "myapp"
+        IMAGE_TAG  = "latest"
+
+        EC2_HOST = "ec2-user@15.206.67.42"
+        SSH_KEY  = "/var/lib/jenkins/.ssh/aws_key.pem"
+        REMOTE_DIR = "/home/ec2-user/app"
     }
 
     stages {
@@ -16,41 +19,67 @@ pipeline {
             }
         }
 
-        stage('Transfer Source Code') {
+        stage('Build Docker Image') {
             steps {
                 sh '''
-                ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST "mkdir -p $APP_DIR"
-
-                rsync -avz --delete \
-                  --exclude='.git' \
-                  --exclude='myapp.tar' \
-                  -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=no" \
-                  ./ $EC2_HOST:$APP_DIR/
+                    docker build -t $IMAGE_NAME:$IMAGE_TAG .
                 '''
             }
         }
 
-        stage('Build and Deploy on EC2') {
+        stage('Export Docker Image') {
             steps {
                 sh '''
-ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST << EOF
-cd $APP_DIR
+                    docker save $IMAGE_NAME:$IMAGE_TAG | gzip > ${IMAGE_NAME}.tar.gz
+                '''
+            }
+        }
 
-docker build --no-cache -t myapp:latest .
+        stage('Transfer Image to EC2') {
+            steps {
+                sh '''
+                    ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST \
+                        "mkdir -p $REMOTE_DIR"
 
-docker stop myapp || true
-docker rm myapp || true
+                    scp -i $SSH_KEY -o StrictHostKeyChecking=no \
+                        ${IMAGE_NAME}.tar.gz \
+                        $EC2_HOST:$REMOTE_DIR/
+                '''
+            }
+        }
 
-docker run -d \
-  --name myapp \
-  -p 80:80 \
-  --restart unless-stopped \
-  myapp:latest
+        stage('Deploy on EC2') {
+            steps {
+                sh '''
+                    ssh -i $SSH_KEY -o StrictHostKeyChecking=no $EC2_HOST << EOF
+                    set -e
 
-docker image prune -f
+                    cd $REMOTE_DIR
+                    gunzip -c ${IMAGE_NAME}.tar.gz | docker load
+
+                    docker stop myapp || true
+                    docker rm myapp || true
+
+                    docker run -d \
+                      --name myapp \
+                      -p 80:80 \
+                      --restart unless-stopped \
+                      $IMAGE_NAME:$IMAGE_TAG
+
+                    docker image prune -f
+                    rm -f ${IMAGE_NAME}.tar.gz
 EOF
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            sh '''
+                rm -f ${IMAGE_NAME}.tar.gz || true
+                docker rmi $IMAGE_NAME:$IMAGE_TAG || true
+            '''
         }
     }
 }
